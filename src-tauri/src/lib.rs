@@ -25,9 +25,11 @@ const OPEN_EXTERNAL_SCRIPT: &str = r#"
     if (!url) return;
     var abs = resolve(url);
     if (!window.__TAURI_INTERNALS__) return;
-    window.__TAURI_INTERNALS__.invoke('open_viewer_window', { url: abs }).catch(function () {
-      // Si por algo falla la ventana nativa, al menos que abra en el navegador del sistema
-      // en vez de no hacer nada.
+    window.__TAURI_INTERNALS__.invoke('open_viewer_window', { url: abs }).catch(function (err) {
+      // DIAGNÓSTICO TEMPORAL: mostrar el error real en pantalla para saber por qué
+      // falla la ventana nativa (se quita en cuanto tengamos la causa confirmada).
+      try { alert('open_viewer_window falló: ' + JSON.stringify(err)); } catch (e2) {}
+      // Respaldo: al menos que abra en el navegador del sistema en vez de no hacer nada.
       window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url: abs });
     });
   }
