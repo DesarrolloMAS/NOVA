@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicU32, Ordering};
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_updater::UpdaterExt;
 
 const SERVER_URL: &str = "http://192.168.10.25/";
@@ -10,22 +10,53 @@ const SERVER_URL: &str = "http://192.168.10.25/";
 // e intercepta ambos casos y llama al comando `open_viewer_window` (ver abajo) en vez
 // de dejar que se pierda — una ventana nueva DE LA APP comparte sesión/cookies con la
 // principal (mismo perfil de WebView2), así el PDF ya sale logueado.
+//
+// OJO: algunos módulos llaman window.open() con una ruta RELATIVA (ej. "visor_x.php?..",
+// sin "http://ip/..."), a diferencia de los <a target="_blank"> donde `.href` siempre
+// devuelve la URL ya resuelta por el navegador. Por eso se resuelve con `new URL(url, base)`
+// antes de mandarla a Rust — si no, `Url::parse` del lado de Rust falla (no es absoluta)
+// y la promesa de invoke() queda rechazada en silencio, sin que se vea nada en pantalla.
 const OPEN_EXTERNAL_SCRIPT: &str = r#"
 (function () {
-  function openInAppWindow(url) {
-    if (!url) return;
-    if (window.__TAURI_INTERNALS__) {
-      window.__TAURI_INTERNALS__.invoke('open_viewer_window', { url: url });
-    }
+  function resolve(url) {
+    try { return new URL(url, window.location.href).toString(); } catch (e) { return url; }
   }
-  window.open = function (url) { openInAppWindow(url); return null; };
+  function openViewer(url) {
+    if (!url) return;
+    var abs = resolve(url);
+    if (!window.__TAURI_INTERNALS__) return;
+    window.__TAURI_INTERNALS__.invoke('open_viewer_window', { url: abs }).catch(function () {
+      // Si por algo falla la ventana nativa, al menos que abra en el navegador del sistema
+      // en vez de no hacer nada.
+      window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url: abs });
+    });
+  }
+  window.open = function (url) { openViewer(url); return null; };
   document.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('a[target="_blank"]');
     if (a && a.href) {
       e.preventDefault();
-      openInAppWindow(a.href);
+      openViewer(a.href);
     }
   }, true);
+})();
+"#;
+
+// Insignia con la versión instalada, para confirmar a simple vista que una
+// actualización se aplicó. Se inyecta solo en la ventana principal (login incluido).
+const VERSION_BADGE_TEMPLATE: &str = r#"
+(function () {
+  var b = document.createElement('div');
+  b.textContent = 'NOVA v__APP_VERSION__';
+  b.style.cssText = 'position:fixed;bottom:6px;right:8px;z-index:2147483647;' +
+    'background:rgba(0,0,0,.6);color:#fff;font:11px monospace;padding:2px 6px;' +
+    'border-radius:4px;pointer-events:none;';
+  function mount() { if (document.body) document.body.appendChild(b); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount);
+  } else {
+    mount();
+  }
 })();
 "#;
 
@@ -77,11 +108,15 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![open_viewer_window])
         .setup(|app| {
+            let version = app.package_info().version.to_string();
+            let badge_script = VERSION_BADGE_TEMPLATE.replace("__APP_VERSION__", &version);
+            let init_script = format!("{OPEN_EXTERNAL_SCRIPT}\n{badge_script}");
+
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SERVER_URL.parse()?))
-                .title("NOVA")
+                .title(format!("NOVA v{version}"))
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(900.0, 600.0)
-                .initialization_script(OPEN_EXTERNAL_SCRIPT)
+                .initialization_script(init_script)
                 .build()?;
 
             let handle = app.handle().clone();
