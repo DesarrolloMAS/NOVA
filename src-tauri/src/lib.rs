@@ -1,5 +1,4 @@
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_process::ProcessExt;
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_updater::UpdaterExt;
 
 const SERVER_URL: &str = "http://192.168.10.25/";
@@ -57,7 +56,6 @@ async fn check_for_updates(app: tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SERVER_URL.parse()?))
