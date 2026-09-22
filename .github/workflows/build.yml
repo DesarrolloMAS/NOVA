@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -26,9 +28,13 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: app-v__VERSION__
           releaseName: 'NOVA Desktop v__VERSION__'
           releaseBody: 'Instalador de escritorio de NOVA. Descarga el .exe/.msi de esta release.'
-          releaseDraft: true
+          # false (no draft): el updater consulta /releases/latest, que GitHub solo
+          # llena con releases publicadas — un draft nunca cuenta como "latest".
+          releaseDraft: false
           prerelease: false

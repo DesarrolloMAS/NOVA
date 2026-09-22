@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Updater signing key — NEVER commit the private key. Public key value is copied
+# into tauri.conf.json instead; keep .keys/ only on the machine that generated it
+# and in the GitHub Actions secret (TAURI_SIGNING_PRIVATE_KEY).
+.keys/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

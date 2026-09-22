@@ -3,6 +3,9 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://192.168.10.25/*"]
+  },
   "permissions": [
     "core:default",
     "opener:default"
