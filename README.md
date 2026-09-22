@@ -11,14 +11,15 @@ No contiene lógica de negocio: toda la app sigue viviendo en el servidor PHP
 La URL del servidor está en `src-tauri/src/lib.rs` → constante `SERVER_URL`.
 Hoy apunta a `http://192.168.10.25/` (IP LAN actual). Si el servidor cambia de IP,
 o si se migra a un hostname/HTTPS interno, actualizar ese valor ahí **y** el patrón
-`remote.urls` en `src-tauri/capabilities/default.json` (si no coinciden, el contenido
-remoto pierde acceso al plugin `opener` y "Ver PDF" vuelve a fallar).
+`remote.urls` en `src-tauri/capabilities/default.json`.
 
 La ventana ya no se declara en `tauri.conf.json` (quedó `"windows": []`): se crea a mano
 en `setup()` (`lib.rs`) porque necesita un script inyectado que intercepta los enlaces
-`target="_blank"`/`window.open()` (así es como la plataforma abre los PDFs) y los manda
-al navegador del sistema en vez de intentar abrir una ventana nueva dentro del webview,
-que WebView2 no crea automáticamente.
+`target="_blank"`/`window.open()` (así es como la plataforma abre los PDFs). Esos enlaces
+se abren en **una ventana nueva de la misma app** (comando `open_viewer_window`), no en
+el navegador del sistema — así comparte sesión/cookies con la ventana principal (mismo
+perfil de WebView2) y no pide login de nuevo. De paso, esa ventana no tiene barra de
+direcciones, así que tampoco se ve la IP del servidor.
 
 ## Desarrollo local
 

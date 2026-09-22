@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU32, Ordering};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -6,25 +7,42 @@ const SERVER_URL: &str = "http://192.168.10.25/";
 // Los PDFs (y otros enlaces) de NOVA se abren con target="_blank" / window.open(),
 // que un webview embebido no maneja como un navegador normal (no crea ventana nueva
 // y la apertura se pierde en silencio). Este script se inyecta en cada página cargada
-// e intercepta ambos casos para abrirlos en el navegador por defecto del sistema.
+// e intercepta ambos casos y llama al comando `open_viewer_window` (ver abajo) en vez
+// de dejar que se pierda — una ventana nueva DE LA APP comparte sesión/cookies con la
+// principal (mismo perfil de WebView2), así el PDF ya sale logueado.
 const OPEN_EXTERNAL_SCRIPT: &str = r#"
 (function () {
-  function openExternal(url) {
+  function openInAppWindow(url) {
     if (!url) return;
     if (window.__TAURI_INTERNALS__) {
-      window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url: url });
+      window.__TAURI_INTERNALS__.invoke('open_viewer_window', { url: url });
     }
   }
-  window.open = function (url) { openExternal(url); return null; };
+  window.open = function (url) { openInAppWindow(url); return null; };
   document.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('a[target="_blank"]');
     if (a && a.href) {
       e.preventDefault();
-      openExternal(a.href);
+      openInAppWindow(a.href);
     }
   }, true);
 })();
 "#;
+
+static VIEWER_WINDOW_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+#[tauri::command]
+fn open_viewer_window(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    let parsed = url.parse().map_err(|e| format!("URL inválida: {e}"))?;
+    let n = VIEWER_WINDOW_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let label = format!("viewer-{n}");
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::External(parsed))
+        .title("NOVA - Documento")
+        .inner_size(1000.0, 800.0)
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
 
 // Revisa si hay una versión nueva publicada y, si la hay, la descarga, instala y
 // reinicia la app. Se corre en background al arrancar — silencioso mientras no hay
@@ -57,6 +75,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![open_viewer_window])
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SERVER_URL.parse()?))
                 .title("NOVA")
