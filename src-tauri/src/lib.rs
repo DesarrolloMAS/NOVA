@@ -59,22 +59,42 @@ const VERSION_BADGE_TEMPLATE: &str = r#"
 })();
 "#;
 
-// Botón flotante de "Atrás": la app no tiene barra de navegador, así que sin esto
+// Botón flotante de "Volver": la app no tiene barra de navegador, así que sin esto
 // cualquier callejón sin salida (ej. una página de error de guardado) deja al
 // usuario sin forma de volver. Usa el historial real del webview (history.back()),
 // así que siempre vuelve a donde sea que estaba, sin necesidad de saber a qué
 // pantalla "pertenece" cada situación. Solo aparece si hay algo a dónde volver.
+//
+// Estilo copiado a mano de `.menu-exit--back` en css/menu_principal.css (el botón
+// "Volver al menú" que ya existe en los hubs de NOVA — mismo ícono, misma píldora
+// con blur) para que se sienta parte de la plataforma y no un overlay ajeno. No se
+// pueden reusar las variables CSS del sitio porque esto se inyecta también en
+// páginas sin esa hoja de estilos (ej. la salida cruda de procesar.php) — por eso
+// los colores van fijos, tomados de los valores de :root en css/index.css (tema claro).
 const BACK_BUTTON_SCRIPT: &str = r#"
 (function () {
   function mount() {
     if (window.history.length <= 1 || !document.body) return;
+    var style = document.createElement('style');
+    style.textContent =
+      '.nova-back-btn{position:fixed;top:22px;left:26px;z-index:2147483647;' +
+      'display:flex;align-items:center;gap:6px;' +
+      'font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.03em;' +
+      'color:#4b6a90;text-decoration:none;cursor:pointer;user-select:none;' +
+      'padding:8px 14px;border-radius:999px;' +
+      'border:1px solid rgba(15,55,120,.14);background:rgba(255,255,255,.68);' +
+      '-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);' +
+      'transition:color .25s cubic-bezier(.16,1,.3,1),border-color .25s cubic-bezier(.16,1,.3,1);}' +
+      '.nova-back-btn:hover{color:#2563eb;border-color:rgba(37,99,235,.55);}' +
+      '.nova-back-btn svg{width:15px;height:15px;flex:none;}';
+    document.head.appendChild(style);
+
     var btn = document.createElement('div');
-    btn.textContent = '←';
-    btn.title = 'Atrás';
-    btn.style.cssText = 'position:fixed;top:10px;left:10px;width:34px;height:34px;' +
-      'border-radius:50%;background:rgba(0,0,0,.55);color:#fff;' +
-      'display:flex;align-items:center;justify-content:center;' +
-      'font:20px/1 sans-serif;cursor:pointer;z-index:2147483647;user-select:none;';
+    btn.className = 'nova-back-btn';
+    btn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">' +
+      '<path stroke-linecap="round" stroke-linejoin="round" d="M15 19 8 12l7-7"/></svg>' +
+      '<span>Volver</span>';
     btn.addEventListener('click', function () { window.history.back(); });
     document.body.appendChild(btn);
   }
