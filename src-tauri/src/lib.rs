@@ -64,8 +64,11 @@ const VERSION_BADGE_TEMPLATE: &str = r#"
 
 static VIEWER_WINDOW_COUNTER: AtomicU32 = AtomicU32::new(0);
 
+// async: si esto corriera sincrónico, se traba en Windows — crear una ventana
+// dentro de un comando síncrono se autobloquea porque el comando corre en el
+// mismo hilo principal que necesita usar internamente para crear la ventana.
 #[tauri::command]
-fn open_viewer_window(app: tauri::AppHandle, url: String) -> Result<(), String> {
+async fn open_viewer_window(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let parsed = url.parse().map_err(|e| format!("URL inválida: {e}"))?;
     let n = VIEWER_WINDOW_COUNTER.fetch_add(1, Ordering::SeqCst);
     let label = format!("viewer-{n}");
