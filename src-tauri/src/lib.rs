@@ -25,10 +25,7 @@ const OPEN_EXTERNAL_SCRIPT: &str = r#"
     if (!url) return;
     var abs = resolve(url);
     if (!window.__TAURI_INTERNALS__) return;
-    window.__TAURI_INTERNALS__.invoke('open_viewer_window', { url: abs }).catch(function (err) {
-      // DIAGNÓSTICO TEMPORAL: mostrar el error real en pantalla para saber por qué
-      // falla la ventana nativa (se quita en cuanto tengamos la causa confirmada).
-      try { alert('open_viewer_window falló: ' + JSON.stringify(err)); } catch (e2) {}
+    window.__TAURI_INTERNALS__.invoke('open_viewer_window', { url: abs }).catch(function () {
       // Respaldo: al menos que abra en el navegador del sistema en vez de no hacer nada.
       window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url: abs });
     });
@@ -54,6 +51,33 @@ const VERSION_BADGE_TEMPLATE: &str = r#"
     'background:rgba(0,0,0,.6);color:#fff;font:11px monospace;padding:2px 6px;' +
     'border-radius:4px;pointer-events:none;';
   function mount() { if (document.body) document.body.appendChild(b); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount);
+  } else {
+    mount();
+  }
+})();
+"#;
+
+// Botón flotante de "Atrás": la app no tiene barra de navegador, así que sin esto
+// cualquier callejón sin salida (ej. una página de error de guardado) deja al
+// usuario sin forma de volver. Usa el historial real del webview (history.back()),
+// así que siempre vuelve a donde sea que estaba, sin necesidad de saber a qué
+// pantalla "pertenece" cada situación. Solo aparece si hay algo a dónde volver.
+const BACK_BUTTON_SCRIPT: &str = r#"
+(function () {
+  function mount() {
+    if (window.history.length <= 1 || !document.body) return;
+    var btn = document.createElement('div');
+    btn.textContent = '←';
+    btn.title = 'Atrás';
+    btn.style.cssText = 'position:fixed;top:10px;left:10px;width:34px;height:34px;' +
+      'border-radius:50%;background:rgba(0,0,0,.55);color:#fff;' +
+      'display:flex;align-items:center;justify-content:center;' +
+      'font:20px/1 sans-serif;cursor:pointer;z-index:2147483647;user-select:none;';
+    btn.addEventListener('click', function () { window.history.back(); });
+    document.body.appendChild(btn);
+  }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', mount);
   } else {
@@ -115,7 +139,8 @@ pub fn run() {
         .setup(|app| {
             let version = app.package_info().version.to_string();
             let badge_script = VERSION_BADGE_TEMPLATE.replace("__APP_VERSION__", &version);
-            let init_script = format!("{OPEN_EXTERNAL_SCRIPT}\n{badge_script}");
+            let init_script =
+                format!("{OPEN_EXTERNAL_SCRIPT}\n{BACK_BUTTON_SCRIPT}\n{badge_script}");
 
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(SERVER_URL.parse()?))
                 .title(format!("NOVA v{version}"))
