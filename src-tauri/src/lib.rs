@@ -77,7 +77,7 @@ const BACK_BUTTON_SCRIPT: &str = r#"
     if (window.history.length <= 1 || !document.body) return;
     var style = document.createElement('style');
     style.textContent =
-      '.nova-back-btn{position:fixed;top:22px;left:26px;z-index:2147483647;' +
+      '.nova-back-btn{position:fixed;bottom:22px;left:26px;z-index:2147483647;' +
       'display:flex;align-items:center;gap:6px;' +
       'font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.03em;' +
       'color:#4b6a90;text-decoration:none;cursor:pointer;user-select:none;' +
